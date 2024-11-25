@@ -1,7 +1,7 @@
 """
 Assignment 3: Parametric Structural Canopy
 
-Author: Your Name
+Author: Boas Olesen
 
 Description:
 This script generates a parametric structural canopy using depth maps and recursive geometry generation.
@@ -42,6 +42,41 @@ import random
 # }
 # tessellation_strategy = 'quad'
 # support_points = [rg.Point3d(0, 0, 0)]
+
+"""
+Create a parametric surface with random varying height as canopy
+    Parametric Inputs
+    length: Canopy length in x direction
+    Width: Canopy width i y direction
+    min_height: Minimumaximum Canopy height in z direction
+    max_height: Maximum Canopy height in z direction
+    n_cols: number of gridpoints in x direction
+    n_rows: number of gridpoints in y direction
+"""
+def parametric_surface(length, width, min_height, max_height, n_cols, n_rows):
+    # Spacing between gridpoints
+    x_spacing = length / (n_cols - 1)
+    y_spacing = width / (n_rows - 1)
+
+    # Generate x and y values based on resolution (amount of rows/columns)
+    x_vals = [i * x_spacing for i in range(n_cols)]
+    y_vals = [i * y_spacing for i in range(n_rows)]
+
+    n_points = len(x_vals) * len(y_vals) # total number of gridpoints
+    z_vals = [max_height - (max_height - min_height) * random.random() for _ in range(n_points)] # randomizes height between min- & max_height
+
+    #    Generate flat list of 3D points
+    pts_grid = [rg.Point3d(x, y, z_vals[i]) for i, (x, y) in enumerate((x, y) for y in y_vals for x in x_vals)]
+    points = pts_grid
+
+    # Surface degrees
+    u_degree = min(3, n_rows - 1)
+    v_degree = min(3, n_cols - 1)
+
+    # Create the surface
+    surface = rg.NurbsSurface.CreateFromPoints(pts_grid, n_rows, n_cols, u_degree, v_degree)
+    return surface
+
 
 def generate_depth_map(surface, control_value):
     """
