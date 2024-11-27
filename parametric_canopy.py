@@ -82,18 +82,46 @@ def tessellate_surface(surface, strategy='quad'):
     Tessellates the input surface using the specified strategy.
 
     Parameters:
-    - surface: The surface to tessellate (rg.Surface)
-    - strategy: The tessellation method ('quad', 'triangular', 'voronoi')
+    - surface: The generated surface to tessellate
+    - U: subdivision in the U direction
+    - V: Subdivision in the V direction
+    - strategy: The tessellation method is diagrid
 
     Returns:
     - tessellated_mesh: A mesh representing the tessellated surface
     """
-    # TODO: Implement tessellation logic based on the chosen strategy
-    # Potential avenues:
-    # - For 'quad', create a grid of points and connect them
-    # - For 'triangular', subdivide quads into triangles
-    # - For 'voronoi', generate seed points and create Voronoi cells
-    pass
+import rhinoscriptsyntax as rs
+import ghpythonlib.treehelpers as th
+
+srf_u_domain = rs.SurfaceDomain(srf, 0)
+srf_v_domain = rs.SurfaceDomain(srf, 1)
+
+srf_pts = []
+for i in range(U + 1):
+    row = []
+    for j in range(V + 1):
+        srf_u = i / U * srf_u_domain[1]
+        srf_v = j / V * srf_v_domain[1]
+        row.append(rs.EvaluateSurface(srf, srf_u, srf_v))
+    srf_pts.append(row)
+
+diagrid = []
+
+# Loop to create the Diagrid pattern
+for i in range(len(srf_pts) - 2):       # Avoid accessing out-of-bound indices
+    if i == 0 or i % 2 == 0:            # Create diagonal pattern only at certain rows
+        for j in range(1, len(srf_pts[0]) - 1, 2):  # Avoid out-of-bound access in j-direction
+            if i + 2 < len(srf_pts) and j + 1 < len(srf_pts[0]):
+                cell_pts = [
+                    srf_pts[i][j], 
+                    srf_pts[i+1][j+1], 
+                    srf_pts[i+2][j], 
+                    srf_pts[i+1][j-1], 
+                    srf_pts[i][j]
+                ]
+                diagrid.append(rs.AddPolyline(cell_pts))
+
+srf_pts = th.list_to_tree(srf_pts)
 
 def generate_recursive_supports(start_point, params, depth=0):
     """
