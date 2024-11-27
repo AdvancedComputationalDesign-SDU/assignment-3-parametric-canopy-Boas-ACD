@@ -65,7 +65,7 @@ def parametric_surface(length, width, min_height, max_height, n_cols, n_rows):
     n_points = len(x_vals) * len(y_vals) # total number of gridpoints
     z_vals = [max_height - (max_height - min_height) * random.random() for _ in range(n_points)] # randomizes height between min- & max_height
 
-    #    Generate flat list of 3D points
+    # Generate flat list of 3D points
     pts_grid = [rg.Point3d(x, y, z_vals[i]) for i, (x, y) in enumerate((x, y) for y in y_vals for x in x_vals)]
     points = pts_grid
 
@@ -76,25 +76,6 @@ def parametric_surface(length, width, min_height, max_height, n_cols, n_rows):
     # Create the surface
     surface = rg.NurbsSurface.CreateFromPoints(pts_grid, n_rows, n_cols, u_degree, v_degree)
     return surface
-
-
-def generate_depth_map(surface, control_value):
-    """
-    Modifies the input surface based on a control function to create a depth map.
-
-    Parameters:
-    - surface: The base surface for the canopy (rg.Surface)
-    - control_value: A numerical value controlling the depth variation
-
-    Returns:
-    - modified_surface: The surface after applying the depth map
-    """
-    # TODO: Implement depth map generation logic
-    # Potential avenues:
-    # - Use mathematical functions like sine or cosine to create undulations
-    # - Manipulate control points of the surface
-    # - Use image-based height maps for more complex variations
-    pass
 
 def tessellate_surface(surface, strategy='quad'):
     """
@@ -122,24 +103,78 @@ def generate_recursive_supports(start_point, params, depth=0):
     - start_point: The starting point for recursion (rg.Point3d)
     - params: A dictionary containing parameters for recursion control
     - depth: The current recursion depth
+    - start_point: Starting point for the support
+    - start_angle: Initial angle for the support
+    - angle_change: Incremnetal change to the angle in each recursion
+    - length: length of each recursion
+    - length_scale: scaling factor for the length in each recursion
+    - height_step: incremental change for height in each recursion
+    - surface: input surface that is gonna act as canopy
+    - max_height: maximum height for the supports
 
     Returns:
-    - curves: A list of generated curves representing the supports
+    - points: a list if points to be used for curve generation
+    - curves: A list of interpolated curves representing the supports
     """
-    # Base case for recursion
-    if depth >= params['max_depth']:
-        return []
-    
-    # TODO: Implement recursive geometry generation logic
-    # Hints:
-    # - Calculate the direction and length of branches
-    # - Create lines or curves for each branch
-    # - Use recursion to generate sub-branches
-    pass
 
+    def generate_recursive_support(start_point, start_angle, angle_change, length, length_scale, height_step, surface, max_heigth):
+        points = [start_point]  # Store the initial point
+        current_angle = start_angle  # Initialize the angle
+    
+        while length > 0.001:  # Stop if length becomes less than 0.001
+            # Calculate x, y, z offsets from length and angle
+            x_change = length * math.sin(current_angle)
+            y_change = length * math.cos(current_angle)
+            z_change = height_step
+            
+            # Create point
+            new_point = rg.Point3d.Add(points[-1], rg.Vector3d(x_change, y_change, z_change))
+
+            # Check if supports missed canopy surface
+            if new_point.Z > max_height + 0.01:
+                break
+
+            points.append(new_point)
+            
+            polyline = rg.Polyline()
+            for pt in points:
+                polyline.Add(pt)
+
+            curve = polyline.ToNurbsCurve()
+
+            # Check for intersection with the canopy surface
+            intersections = rg.Intersect.Intersection.CurveSurface(curve, surface, 0.001, 0.001)
+            if intersections:
+                for event in intersections:
+                    if event.IsPoint:
+                        intersect_point = event.PointA  # Get the intersection point
+                        points.append(intersect_point)
+                        return points
+            
+            # Update angle and length
+            current_angle += math.radians(angle_change)
+            length *= length_scale  # Scale the length for the next step
+    
+        return points
+
+    # Generate points recursively, stopping at canopy intersection
+    points = generate_recursive_support(start_point, start_angle, angle_change, length, length_scale, height_step, surface, max_height)
+
+    # Remove point that goes through the canopy surface
+    points.pop(-2)
+
+    # Ensure points are all valid Point3d objects before output
+    validated_points = [pt for pt in points if isinstance(pt, rg.Point3d)]
+
+    # Interpolate curve through the points
+    curve = rg.NurbsCurve.CreateInterpolatedCurve(validated_points, 3)
+
+"""
 # Main execution (This code would be inside the GhPython component)
 # Inputs from Grasshopper should be connected to the respective variables
 # base_surface, depth_map_control, recursion_params, tessellation_strategy, support_points
+
+"""
 
 if base_surface and depth_map_control and recursion_params and tessellation_strategy and support_points:
     # Generate modified surface with depth map
